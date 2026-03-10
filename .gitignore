@@ -1,0 +1,64 @@
+# Python cache
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+#folders
+data/
+models/
+
+
+# Jupyter notebooks
+
+.ipynb_checkpoints/
+
+# Virtual environments
+
+venv/
+env/
+ENV/
+.venv/
+
+# Python packaging
+
+build/
+dist/
+*.egg-info/
+
+# Logs
+
+*.log
+
+# Environment variables
+
+.env
+
+# Model files (generated after training)
+
+models/*.pkl
+models/*.joblib
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# IDE / Editor settings
+
+.vscode/
+.idea/
+
+# Temporary files
+
+*.tmp
+*.temp
+
+# Python testing
+
+.pytest_cache/
+
+# Coverage reports
+
+.coverage
+htmlcov/

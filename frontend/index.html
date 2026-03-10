@@ -180,9 +180,6 @@ background:#374151;
 </div>
 
 <script>
-require("dotenv").config();
-
-const API_KEY = process.env.API_KEY;
 
 const searchInput = document.getElementById("movie")
 const suggestionBox = document.getElementById("suggestions")
@@ -193,197 +190,181 @@ let currentIndex = -1
 
 
 async function getMovieData(tmdbId){
-
     if(!tmdbId) return null
 
-    const url =
-    `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${API_KEY}`
-
-    const res = await fetch(url)
-    return await res.json()
+    try{
+        const res = await fetch(`http://127.0.0.1:5000/movie/${tmdbId}`)
+        return await res.json()
+    }catch(err){
+        return null
+    }
 }
 
 
 async function recommend(){
 
-let movie = searchInput.value.trim()
+    let movie = searchInput.value.trim()
 
-suggestionBox.innerHTML = ""
-currentIndex = -1
+    suggestionBox.innerHTML = ""
+    currentIndex = -1
 
-if(movie === ""){
-resultsBox.innerHTML='<div class="message">Enter a movie name</div>'
-return
+    if(movie === ""){
+        resultsBox.innerHTML='<div class="message">Enter a movie name</div>'
+        return
+    }
+
+    resultsBox.innerHTML='<div class="message"><div class="loader"></div><br>Loading...</div>'
+
+    let response = await fetch("http://127.0.0.1:5000/recommend",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({movie:movie})
+    })
+
+    let data = await response.json()
+
+    if(data.error){
+        resultsBox.innerHTML=`<div class="message">${data.error}</div>`
+        return
+    }
+
+    let movies = data
+
+    resultsBox.innerHTML=""
+
+    // fetch all movie metadata in parallel
+    const movieDataList = await Promise.all(
+        movies.map(m => getMovieData(m.tmdbId))
+    )
+
+    movies.forEach((movieObj, i) => {
+
+        const movieData = movieDataList[i]
+
+        let poster = "https://via.placeholder.com/200x300?text=No+Poster"
+
+        if(movieData && movieData.poster_path){
+            poster = "https://image.tmdb.org/t/p/w500" + movieData.poster_path
+        }
+
+        let overview = movieData?.overview || "No description available."
+        let rating = movieData?.vote_average || "N/A"
+        let year = movieData?.release_date ? movieData.release_date.slice(0,4) : ""
+
+        let card = document.createElement("div")
+        card.className = "card"
+
+        card.innerHTML = `
+        <img src="${poster}">
+        <div class="card-title">${movieObj.title}</div>
+
+        <div class="card-info">
+        <div class="rating">⭐ ${rating}</div>
+        <div>${year}</div>
+        <p>${overview.substring(0,120)}...</p>
+        </div>
+        `
+
+        resultsBox.appendChild(card)
+    })
 }
-
-resultsBox.innerHTML='<div class="message"><div class="loader"></div><br>Loading...</div>'
-
-let response = await fetch("http://127.0.0.1:5000/recommend",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({movie:movie})
-})
-
-let data = await response.json()
-
-if(data.error){
-resultsBox.innerHTML=`<div class="message">${data.error}</div>`
-return
-}
-
-let movies = data
-
-resultsBox.innerHTML=""
-
-for(const movieObj of movies){
-
-let data = await getMovieData(movieObj.tmdbId)
-
-let poster =
-data?.poster_path
-? "https://image.tmdb.org/t/p/w500"+data.poster_path
-: "https://via.placeholder.com/200x300?text=No+Poster"
-
-let overview = data?.overview || "No description available."
-let rating = data?.vote_average || "N/A"
-let year = data?.release_date ? data.release_date.slice(0,4) : ""
-
-let card=document.createElement("div")
-card.className="card"
-
-card.innerHTML=
-`
-<img src="${poster}">
-<div class="card-title">${movieObj.title}</div>
-
-<div class="card-info">
-<div class="rating">⭐ ${rating}</div>
-<div>${year}</div>
-<p>${overview.substring(0,120)}...</p>
-</div>
-`
-
-resultsBox.appendChild(card)
-
-}
-
-}
-
 
 
 searchInput.addEventListener("input", async function(){
 
-let query = this.value.trim()
+    let query = this.value.trim()
 
-if(query.length < 1){
-suggestionBox.innerHTML = ""
-suggestions = []
-return
-}
+    if(query.length < 1){
+        suggestionBox.innerHTML = ""
+        suggestions = []
+        return
+    }
 
-let res = await fetch(`http://127.0.0.1:5000/search?q=${encodeURIComponent(query)}`)
-suggestions = await res.json()
+    let res = await fetch(`http://127.0.0.1:5000/search?q=${encodeURIComponent(query)}`)
+    suggestions = await res.json()
 
-suggestionBox.innerHTML = ""
-currentIndex = -1
+    suggestionBox.innerHTML = ""
+    currentIndex = -1
 
-suggestions.forEach((title, index) => {
+    suggestions.forEach((title, index) => {
 
-let item = document.createElement("div")
-item.className = "suggestion"
-item.innerText = title
+        let item = document.createElement("div")
+        item.className = "suggestion"
+        item.innerText = title
 
-item.onclick = () => selectSuggestion(index)
+        item.onclick = () => selectSuggestion(index)
 
-suggestionBox.appendChild(item)
+        suggestionBox.appendChild(item)
 
-})
-
+    })
 })
 
 
 document.addEventListener("keydown", function(e){
 
-if(suggestions.length === 0) return
+    if(suggestions.length === 0) return
 
-if(e.key === "ArrowDown"){
+    if(e.key === "ArrowDown"){
+        e.preventDefault()
+        currentIndex++
+        if(currentIndex >= suggestions.length) currentIndex = 0
+        updateHighlight()
+    }
 
-e.preventDefault()
+    else if(e.key === "ArrowUp"){
+        e.preventDefault()
+        currentIndex--
+        if(currentIndex < 0) currentIndex = suggestions.length - 1
+        updateHighlight()
+    }
 
-currentIndex++
-if(currentIndex >= suggestions.length) currentIndex = 0
-
-updateHighlight()
-
-}
-
-else if(e.key === "ArrowUp"){
-
-e.preventDefault()
-
-currentIndex--
-if(currentIndex < 0) currentIndex = suggestions.length - 1
-
-updateHighlight()
-
-}
-
-else if(e.key === "Enter"){
-
-if(currentIndex >= 0){
-selectSuggestion(currentIndex)
-}else{
-recommend()
-}
-
-}
-
+    else if(e.key === "Enter"){
+        if(currentIndex >= 0){
+            selectSuggestion(currentIndex)
+        }else{
+            recommend()
+        }
+    }
 })
 
 
 function updateHighlight(){
 
-let items = document.querySelectorAll(".suggestion")
+    let items = document.querySelectorAll(".suggestion")
 
-items.forEach(item => item.classList.remove("active"))
+    items.forEach(item => item.classList.remove("active"))
 
-if(items[currentIndex]){
-items[currentIndex].classList.add("active")
-}
-
+    if(items[currentIndex]){
+        items[currentIndex].classList.add("active")
+    }
 }
 
 
 function selectSuggestion(index){
 
-searchInput.value = suggestions[index]
+    searchInput.value = suggestions[index]
 
-suggestionBox.innerHTML = ""
-currentIndex = -1
+    suggestionBox.innerHTML = ""
+    currentIndex = -1
 
-recommend()
-
+    recommend()
 }
 
 
-// autofocus when page loads
 window.onload = () => searchInput.focus()
 
 
-// typing anywhere focuses search
 document.addEventListener("keydown", function(event){
 
-if(document.activeElement === searchInput) return
+    if(document.activeElement === searchInput) return
 
-if(event.key.length === 1){
-searchInput.focus()
-searchInput.value += event.key
-event.preventDefault()
-}
-
+    if(event.key.length === 1){
+        searchInput.focus()
+        searchInput.value += event.key
+        event.preventDefault()
+    }
 })
 
 </script>
-
 </body>
 </html>

@@ -1,8 +1,13 @@
 import sys
 import os
+import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
+from dotenv import load_dotenv
+
+load_dotenv()
+TMDB_API_KEY = os.getenv("API_KEY")
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

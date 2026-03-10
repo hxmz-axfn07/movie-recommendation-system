@@ -7,7 +7,7 @@ import joblib
 from dotenv import load_dotenv
 
 load_dotenv()
-TMDB_API_KEY = os.getenv("API_KEY")
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

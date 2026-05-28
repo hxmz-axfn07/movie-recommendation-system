@@ -1,64 +1,80 @@
+# =========================
 # Python cache
-
-**pycache**/
+# =========================
+__pycache__/
 *.py[cod]
 *$py.class
 
-#folders
-data/
-models/
-
-
-# Jupyter notebooks
-
-.ipynb_checkpoints/
-
+# =========================
 # Virtual environments
-
+# =========================
 venv/
 env/
 ENV/
 .venv/
 
-# Python packaging
+# =========================
+# Jupyter notebooks
+# =========================
+.ipynb_checkpoints/
 
+# =========================
+# Python packaging
+# =========================
 build/
 dist/
 *.egg-info/
 
+# =========================
 # Logs
-
+# =========================
 *.log
 
+# =========================
 # Environment variables
-
+# =========================
 .env
 
-# Model files (generated after training)
-
-models/*.pkl
-models/*.joblib
-
-# OS files
-
-.DS_Store
-Thumbs.db
-
+# =========================
 # IDE / Editor settings
-
+# =========================
 .vscode/
 .idea/
 
+# =========================
 # Temporary files
-
+# =========================
 *.tmp
 *.temp
 
+# =========================
 # Python testing
-
+# =========================
 .pytest_cache/
 
+# =========================
 # Coverage reports
-
+# =========================
 .coverage
 htmlcov/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Large generated artifacts
+# =========================
+
+# Ignore ONLY extremely large models
+models/genre_sim.pkl
+
+# Optional: ignore trained artifacts if regenerated locally
+# models/*.pkl
+# models/*.joblib
+
+# Optional: ignore huge datasets
+# data/
+# *.csv

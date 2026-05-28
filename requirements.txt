@@ -6,3 +6,6 @@ matplotlib
 streamlit
 flask
 flask-cors
+requests
+joblib
+python-dotenv

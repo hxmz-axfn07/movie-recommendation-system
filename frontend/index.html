@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<meta charset="UTF-8">
-	<title>Movie Recommender</title>
+    <meta charset="UTF-8">
+    <title>Movie Recommender</title>
 
 <style>
-
 body{
 background:#0b0f1a;
 color:white;
@@ -27,6 +26,10 @@ font-size:40px;
 
 .search-box{
 margin-top:30px;
+display:flex;
+justify-content:center;
+gap:10px;
+position:relative;
 }
 
 input{
@@ -38,12 +41,16 @@ border:none;
 
 button{
 padding:12px 20px;
-margin-left:10px;
 border:none;
 background:#e50914;
 color:white;
 border-radius:6px;
 cursor:pointer;
+}
+
+button:disabled{
+background:#7f1d1d;
+cursor:wait;
 }
 
 .grid{
@@ -61,18 +68,11 @@ transition:transform .2s;
 position:relative;
 }
 
-.card{
-background:#141b2d;
-border-radius:8px;
-overflow:hidden;
-transition:transform .2s;
-position:relative;
-}
-
 .card img{
 width:100%;
 height:260px;
 object-fit:cover;
+transition:transform 0.3s ease;
 }
 
 .card-info{
@@ -105,9 +105,6 @@ color:#ffd700;
 font-weight:bold;
 margin-bottom:4px;
 }
-.card img{
-transition:transform 0.3s ease;
-}
 
 .message{
 grid-column: 1 / -1;
@@ -116,7 +113,6 @@ font-size:20px;
 color:#ccc;
 margin-top:40px;
 }
-
 
 .loader{
 border:4px solid #333;
@@ -132,7 +128,6 @@ margin:auto;
 0%{transform:rotate(0deg);}
 100%{transform:rotate(360deg);}
 }
-
 
 .suggestions{
 position:absolute;
@@ -167,11 +162,11 @@ background:#374151;
 
 <div class="container">
 
-<h1>🎬 Movie Recommendation System</h1>
+<h1>Movie Recommendation System</h1>
 
 <div class="search-box">
 <input id="movie" placeholder="Enter a movie name">
-<button onclick="recommend()">Recommend</button>
+<button id="recommendButton" onclick="recommend()">Recommend</button>
 </div>
 <div id="suggestions" class="suggestions"></div>
 
@@ -180,99 +175,119 @@ background:#374151;
 </div>
 
 <script>
-
 const searchInput = document.getElementById("movie")
 const suggestionBox = document.getElementById("suggestions")
 const resultsBox = document.getElementById("results")
+const recommendButton = document.getElementById("recommendButton")
+const API_BASE = "http://127.0.0.1:5000"
 
 let suggestions = []
 let currentIndex = -1
+let searchTimer = null
+let searchController = null
+let recommendController = null
+let activeRecommendId = 0
 
-
-async function getMovieData(tmdbId){
+async function getMovieData(tmdbId, signal){
     if(!tmdbId) return null
 
     try{
-        const res = await fetch(`http://127.0.0.1:5000/movie/${tmdbId}`)
+        const res = await fetch(`${API_BASE}/movie/${tmdbId}`, {signal})
         return await res.json()
     }catch(err){
         return null
     }
 }
 
-
 async function recommend(){
-
+    const requestId = ++activeRecommendId
     let movie = searchInput.value.trim()
 
     suggestionBox.innerHTML = ""
     currentIndex = -1
+
+    if(recommendController) recommendController.abort()
+    recommendController = new AbortController()
 
     if(movie === ""){
         resultsBox.innerHTML='<div class="message">Enter a movie name</div>'
         return
     }
 
+    recommendButton.disabled = true
     resultsBox.innerHTML='<div class="message"><div class="loader"></div><br>Loading...</div>'
 
-    let response = await fetch("http://127.0.0.1:5000/recommend",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({movie:movie})
-    })
+    try{
+        let response = await fetch(`${API_BASE}/recommend`,{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({movie:movie}),
+            signal:recommendController.signal
+        })
 
-    let data = await response.json()
+        let data = await response.json()
 
-    if(data.error){
-        resultsBox.innerHTML=`<div class="message">${data.error}</div>`
-        return
-    }
+        if(requestId !== activeRecommendId) return
 
-    let movies = data
-
-    resultsBox.innerHTML=""
-
-    // fetch all movie metadata in parallel
-    const movieDataList = await Promise.all(
-        movies.map(m => getMovieData(m.tmdbId))
-    )
-
-    movies.forEach((movieObj, i) => {
-
-        const movieData = movieDataList[i]
-
-        let poster = "https://via.placeholder.com/200x300?text=No+Poster"
-
-        if(movieData && movieData.poster_path){
-            poster = "https://image.tmdb.org/t/p/w500" + movieData.poster_path
+        if(data.error){
+            resultsBox.innerHTML=`<div class="message">${data.error}</div>`
+            return
         }
 
-        let overview = movieData?.overview || "No description available."
-        let rating = movieData?.vote_average || "N/A"
-        let year = movieData?.release_date ? movieData.release_date.slice(0,4) : ""
+        resultsBox.innerHTML=""
 
-        let card = document.createElement("div")
-        card.className = "card"
+        const movieDataList = await Promise.all(
+            data.map(m => getMovieData(m.tmdbId, recommendController.signal))
+        )
 
-        card.innerHTML = `
-        <img src="${poster}">
-        <div class="card-title">${movieObj.title}</div>
+        if(requestId !== activeRecommendId) return
 
-        <div class="card-info">
-        <div class="rating">⭐ ${rating}</div>
-        <div>${year}</div>
-        <p>${overview.substring(0,120)}...</p>
-        </div>
-        `
+        const fragment = document.createDocumentFragment()
 
-        resultsBox.appendChild(card)
-    })
+        data.forEach((movieObj, i) => {
+            const movieData = movieDataList[i]
+            let poster = "https://via.placeholder.com/200x300?text=No+Poster"
+
+            if(movieData && movieData.poster_path){
+                poster = "https://image.tmdb.org/t/p/w500" + movieData.poster_path
+            }
+
+            let overview = movieData?.overview || "No description available."
+            let rating = movieData?.vote_average || "N/A"
+            let year = movieData?.release_date ? movieData.release_date.slice(0,4) : ""
+
+            let card = document.createElement("div")
+            card.className = "card"
+
+            card.innerHTML = `
+            <img src="${poster}" loading="lazy" alt="${movieObj.title}">
+            <div class="card-title">${movieObj.title}</div>
+
+            <div class="card-info">
+            <div class="rating">Rating: ${rating}</div>
+            <div>${year}</div>
+            <p>${overview.substring(0,120)}...</p>
+            </div>
+            `
+
+            fragment.appendChild(card)
+        })
+
+        resultsBox.appendChild(fragment)
+    }catch(err){
+        if(err.name !== "AbortError"){
+            resultsBox.innerHTML='<div class="message">Unable to load recommendations</div>'
+        }
+    }finally{
+        if(requestId === activeRecommendId){
+            recommendButton.disabled = false
+        }
+    }
 }
 
-
-searchInput.addEventListener("input", async function(){
-
+searchInput.addEventListener("input", function(){
     let query = this.value.trim()
+    clearTimeout(searchTimer)
 
     if(query.length < 1){
         suggestionBox.innerHTML = ""
@@ -280,28 +295,37 @@ searchInput.addEventListener("input", async function(){
         return
     }
 
-    let res = await fetch(`http://127.0.0.1:5000/search?q=${encodeURIComponent(query)}`)
-    suggestions = await res.json()
+    searchTimer = setTimeout(async () => {
+        if(searchController) searchController.abort()
+        searchController = new AbortController()
 
-    suggestionBox.innerHTML = ""
-    currentIndex = -1
+        try{
+            let res = await fetch(
+                `${API_BASE}/search?q=${encodeURIComponent(query)}`,
+                {signal:searchController.signal}
+            )
+            suggestions = await res.json()
+        }catch(err){
+            if(err.name !== "AbortError") suggestions = []
+            return
+        }
 
-    suggestions.forEach((title, index) => {
+        if(searchInput.value.trim() !== query) return
 
-        let item = document.createElement("div")
-        item.className = "suggestion"
-        item.innerText = title
+        suggestionBox.innerHTML = ""
+        currentIndex = -1
 
-        item.onclick = () => selectSuggestion(index)
-
-        suggestionBox.appendChild(item)
-
-    })
+        suggestions.forEach((title, index) => {
+            let item = document.createElement("div")
+            item.className = "suggestion"
+            item.innerText = title
+            item.onclick = () => selectSuggestion(index)
+            suggestionBox.appendChild(item)
+        })
+    }, 180)
 })
 
-
 document.addEventListener("keydown", function(e){
-
     if(suggestions.length === 0) return
 
     if(e.key === "ArrowDown"){
@@ -327,9 +351,7 @@ document.addEventListener("keydown", function(e){
     }
 })
 
-
 function updateHighlight(){
-
     let items = document.querySelectorAll(".suggestion")
 
     items.forEach(item => item.classList.remove("active"))
@@ -339,23 +361,16 @@ function updateHighlight(){
     }
 }
 
-
 function selectSuggestion(index){
-
     searchInput.value = suggestions[index]
-
     suggestionBox.innerHTML = ""
     currentIndex = -1
-
     recommend()
 }
 
-
 window.onload = () => searchInput.focus()
 
-
 document.addEventListener("keydown", function(event){
-
     if(document.activeElement === searchInput) return
 
     if(event.key.length === 1){
@@ -364,7 +379,6 @@ document.addEventListener("keydown", function(event){
         event.preventDefault()
     }
 })
-
 </script>
 </body>
 </html>

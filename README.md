@@ -1,348 +1,252 @@
 # Movie Recommendation System
 
-A full-stack machine learning application that recommends movies based on user input.
-The system combines collaborative filtering and content-based similarity using the MovieLens dataset, and displays recommendations through a web interface with movie posters and metadata.
+A full-stack movie recommendation app using Flask, scikit-learn, pandas, and a lightweight HTML/CSS/JavaScript frontend.
 
-The project demonstrates how machine learning models can be integrated with APIs and a frontend interface to build an end-to-end recommendation system.
+The app recommends movies from the MovieLens dataset using a hybrid approach:
 
----
+- Collaborative filtering with a trained KNN model
+- Content-based similarity from movie genres
+- TMDB metadata lookup for posters, ratings, release year, and overviews
 
-## Overview
+## Features
 
-Recommendation systems are widely used by modern streaming platforms to help users discover relevant content. This project implements a simplified version of such a system using:
+- Movie autocomplete search
+- Hybrid movie recommendations
+- Poster grid with hover details
+- TMDB metadata enrichment
+- Debounced frontend search requests
+- Cancellable stale frontend requests
+- Path-safe backend startup from different working directories
+- Faster backend startup by avoiding unnecessary large dataset/model loads at runtime
 
-* Collaborative filtering based on user ratings
-* Content-based similarity using movie genres
-* A hybrid recommendation strategy combining both methods
-* A Flask API backend
-* A browser-based frontend interface
-* Metadata and posters from the TMDB API
+## Tech Stack
 
----
+- Python
+- Flask
+- Flask-CORS
+- pandas
+- NumPy
+- SciPy
+- scikit-learn
+- joblib
+- requests
+- python-dotenv
+- HTML
+- CSS
+- JavaScript
+- TMDB API
+- MovieLens dataset
 
-## System Architecture
+## Project Structure
 
-```mermaid
-flowchart TD
-
-A[User Input] --> B[Frontend]
-B --> C[Flask API]
-C --> D{Hybrid Recommender}
-
-D -->|Collaborative| E[Collaborative Filtering]
-D -->|Content| F[Genre Similarity]
-
-E --> G[Merge Results]
-F --> G
-
-G --> H[Recommended Movies]
-H --> I[TMDB API]
-I --> J[Poster + Metadata]
-J --> K[Frontend Display]
+```text
+movie-recommendation-system/
+├── app/
+│   ├── app.py          # CLI recommender entry point
+│   └── server.py       # Flask API used by the frontend
+├── data/
+│   ├── movie.csv       # Movie metadata
+│   ├── rating.csv      # User ratings used for training
+│   ├── link.csv        # MovieLens to TMDB/IMDB mapping
+│   ├── tag.csv         # User tags
+│   └── genome_tags.csv # Genome tag labels
+├── frontend/
+│   └── index.html      # Browser UI
+├── models/
+│   ├── knn_model.pkl   # Trained KNN model
+│   ├── matrix.pkl      # Sparse movie-user ratings matrix
+│   └── movie_index.pkl # Movie ID to matrix index mapping
+├── notebook/
+│   └── movie_recommender.ipynb
+├── src/
+│   ├── content_model.py
+│   ├── data_loader.py
+│   ├── model.py
+│   ├── recommender.py
+│   └── train.py
+├── requirements.txt
+└── README.md
 ```
-
----
 
 ## Dataset
 
-This project uses the MovieLens 20M Dataset created by the GroupLens Research Lab at the University of Minnesota.
+This project uses MovieLens data.
 
-The dataset contains 20 million user ratings and tagging activities applied to 27,000 movies by 138,000 users. It is widely used in research on recommender systems and collaborative filtering algorithms.
+Expected runtime/training files:
 
-Dataset sources:
+- `data/movie.csv`
+- `data/rating.csv`
+- `data/link.csv`
 
-GroupLens official site
-https://grouplens.org/datasets/movielens/
+The backend uses `movie.csv` and `link.csv` at runtime. `rating.csv` is only needed for training.
 
-Kaggle mirror (used in this project)
-https://www.kaggle.com/datasets/grouplens/movielens-20m-dataset
+## Environment Variables
 
-### Important files
+Create a `.env` file in the project root:
 
-**movies.csv**
-
-Contains movie metadata.
-
-```
-movieId,title,genres
-1,Toy Story (1995),Adventure|Animation|Children|Comedy|Fantasy
+```env
+TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
-**ratings.csv**
+Without this key, recommendations still work, but poster and movie metadata requests will not return TMDB details.
 
-Contains user ratings.
+## Installation
 
-```
-userId,movieId,rating
-1,1,4.0
-```
-
-Used for collaborative filtering.
-
-**links.csv**
-
-Maps MovieLens movies to external databases.
-
-```
-movieId,imdbId,tmdbId
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-Used to fetch movie posters and metadata from TMDB.
+On macOS/Linux:
 
----
-
-## Recommendation Algorithm
-
-The system uses a **hybrid recommendation model** combining two approaches.
-
-### Collaborative Filtering
-
-Collaborative filtering recommends movies based on patterns in user ratings.
-
-Example:
-
-```
-Users who liked Toy Story also liked:
-- Monsters Inc
-- Finding Nemo
-- Shrek
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Implementation uses a **K-Nearest Neighbors (KNN)** model trained on the user-movie ratings matrix.
+## Training
 
-Libraries used:
+Train or rebuild the model files:
 
-* scikit-learn
-* numpy
-* scipy
-* pandas
-
----
-
-### Content-Based Filtering
-
-Content-based recommendations are generated using movie genres.
-
-Example:
-
-```
-Toy Story
-Adventure | Animation | Comedy
-
-Similar movies:
-- Shrek
-- Despicable Me
-- Tangled
+```bash
+python src/train.py
 ```
 
-Genres are converted into feature vectors and compared using cosine similarity.
+This writes model artifacts into `models/`.
 
----
+Required output files for the Flask backend:
 
-### Hybrid Model
+- `models/knn_model.pkl`
+- `models/matrix.pkl`
+- `models/movie_index.pkl`
 
-The final recommendation list merges results from both methods:
+`models/genre_sim.pkl` is not required by the current Flask backend. Genre similarity is computed from compact genre vectors at runtime to avoid loading a very large similarity matrix.
 
+## Running the App
+
+Start the backend:
+
+```bash
+python -m flask --app app.server run --host 127.0.0.1 --port 5000
 ```
-Collaborative Filtering
-+
-Genre Similarity
+
+Start the frontend in another terminal:
+
+```bash
+python -m http.server 8000 --directory frontend
 ```
 
-This improves recommendation diversity and accuracy.
+Open:
 
----
-
-## Backend
-
-The backend is built using **Flask** and exposes a simple REST API.
-
-### Recommendation endpoint
-
+```text
+http://127.0.0.1:8000
 ```
+
+## API
+
+### Search Movies
+
+```http
+GET /search?q=toy
+```
+
+Example response:
+
+```json
+[
+  "Toy Story (1995)",
+  "Toy Story 2 (1999)"
+]
+```
+
+### Get Recommendations
+
+```http
 POST /recommend
+Content-Type: application/json
 ```
 
 Request:
 
-```
+```json
 {
   "movie": "Toy Story"
 }
 ```
 
-Response:
+Example response:
 
-```
+```json
 [
-  { "title": "Toy Story 2 (1999)", "tmdbId": 863 },
-  { "title": "Finding Nemo (2003)", "tmdbId": 12 }
+  {
+    "title": "Star Wars: Episode IV - A New Hope (1977)",
+    "tmdbId": 11
+  }
 ]
 ```
 
----
+### Get TMDB Details
 
-### Search suggestions
-
-```
-GET /search?q=toy
+```http
+GET /movie/<tmdb_id>
 ```
 
-Used by the frontend to implement autocomplete.
+Example:
 
----
-
-## Frontend
-
-The frontend is a lightweight web interface built with:
-
-* HTML
-* CSS
-* JavaScript
-
-Features include:
-
-* Movie search with autocomplete
-* Keyboard navigation for suggestions
-* Poster grid display
-* Hover-based movie information
-* Loading indicator while fetching recommendations
-
-Movie posters and metadata are retrieved from the TMDB API.
-
----
-
-## Project Structure
-
-## Project Structure
-
-## Project Structure
-
-```
-movie-recommendation
-│
-├── app
-│   ├── app.py              # Early backend / experimentation entry point
-│   ├── server.py           # Main Flask API server used by the frontend
-│   └── streamlit_app.py    # Optional Streamlit interface for testing
-│
-├── data                    # MovieLens dataset files
-│   ├── movies.csv          # Movie metadata (title, genres)
-│   ├── ratings.csv         # User ratings used for collaborative filtering
-│   ├── links.csv           # Mapping from MovieLens IDs → TMDB / IMDB IDs
-│   ├── genome_scores.csv   # Tag relevance scores for advanced features
-│   ├── genome_tags.csv     # Tag descriptions used with genome scores
-│   └── tags.csv            # User-generated tags for movies
-│
-├── frontend
-│   └── index.html          # Web interface (HTML, CSS, JavaScript)
-│
-├── models                  # Saved machine learning models
-│   ├── knn_model.pkl       # Trained KNN collaborative filtering model
-│   ├── matrix.pkl          # User–movie sparse rating matrix
-│   ├── movie_index.pkl     # Mapping from movieId → matrix index
-│   └── genre_sim.pkl       # Genre similarity matrix for content-based filtering
-│
-├── notebook
-│   └── movie_recommender.ipynb   # Development notebook for experimentation
-│
-├── src                     # Core machine learning code
-│   ├── content_model.py    # Builds genre similarity model
-│   ├── data_loader.py      # Loads and prepares dataset
-│   ├── model.py            # Collaborative filtering model logic
-│   ├── recommender.py      # Hybrid recommendation algorithm
-│   └── train.py            # Training script to generate model files
-│
-├── env                     # Local Python virtual environment (not committed)
-├── .gitignore              # Files ignored by Git
-├── requirements.txt        # Python dependencies
-└── README.md               # Project documentation
+```http
+GET /movie/862
 ```
 
----
+## Performance Notes
 
-## Running the Project
+- Backend paths are resolved from the project root, so running from different directories is safer.
+- The Flask API does not load `rating.csv` at runtime.
+- The Flask API does not load the large `genre_sim.pkl` file at runtime.
+- Search requests in the frontend are debounced.
+- Old frontend search/recommend requests are aborted when newer input arrives.
+- TMDB detail requests are cached in memory during the Flask process.
 
-### Install dependencies
+## Common Issues
 
+### Backend Cannot Find Data Or Models
+
+Check that these files exist:
+
+```text
+data/movie.csv
+data/link.csv
+models/knn_model.pkl
+models/matrix.pkl
+models/movie_index.pkl
 ```
-pip install -r requirements.txt
-```
 
-### Train the model
+If model files are missing, run:
 
-```
+```bash
 python src/train.py
 ```
 
-This generates the trained model files in the `models` directory.
+### Posters Or Metadata Do Not Load
 
-### Start the backend
+Check `.env`:
 
-```
-python app/server.py
-```
-
-Server runs at:
-
-```
-http://127.0.0.1:5000
+```env
+TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
-### Start the frontend
+Restart the Flask backend after changing `.env`.
 
-Open:
+### Frontend Shows Network Error
 
+Make sure both servers are running:
+
+```text
+Backend:  http://127.0.0.1:5000
+Frontend: http://127.0.0.1:8000
 ```
-frontend/index.html
-```
-
-or run a simple server:
-
-```
-cd frontend
-python -m http.server 8000
-```
-
-Then open:
-
-```
-http://localhost:8000
-```
-
----
-
-## Technologies Used
-
-* Python
-* Flask
-* scikit-learn
-* NumPy
-* Pandas
-* SciPy
-* HTML
-* CSS
-* JavaScript
-* TMDB API
-* MovieLens Dataset
-
----
-
-## Future Improvements
-
-Possible extensions include:
-
-* Deep learning recommendation models
-* Personalized recommendations using user history
-* Visualization of movie similarity clusters
-* Deployment using Docker or cloud platforms
-* Enhanced metadata features using genome tags
-
----
 
 ## License
 
-This project is intended for educational and research purposes.
-
-Dataset: MovieLens
-Metadata API: TMDB
+This project is for educational and research use. MovieLens data belongs to GroupLens. TMDB metadata belongs to TMDB and follows TMDB API terms.
